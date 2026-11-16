@@ -10,7 +10,7 @@
 body{margin:0;background:#f3f4fa;font-family:Tahoma;color:#222}
 header{background:linear-gradient(120deg,#171738,#6256d9);color:white;text-align:center;padding:30px 15px}
 header h1{font-size:36px;margin:5px}
-nav{background:white;padding:15px;text-align:center}
+nav{background:white;padding:12px;text-align:center;position:sticky;top:0;z-index:5}
 button{border:0;border-radius:9px;padding:12px 18px;background:#5148b8;color:white;cursor:pointer;font-family:Tahoma;margin:4px}
 nav button{background:white;color:#5148b8;font-weight:bold}
 .container{max-width:1000px;margin:25px auto;padding:15px}
@@ -18,10 +18,13 @@ nav button{background:white;color:#5148b8;font-weight:bold}
 input,textarea{width:100%;padding:13px;margin:8px 0;border:1px solid #ddd;border-radius:8px;font-family:Tahoma}
 .products{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px}
 .product{background:white;padding:15px;border-radius:14px;text-align:center;box-shadow:0 3px 12px #ddd}
-.product img{width:100%;height:160px;object-fit:contain}
-.hidden{display:none}
+.product img{width:100%;height:170px;object-fit:contain}
+.hidden{display:none!important}
 .danger{background:#d94343}
+.cart-item{background:white;padding:15px;border-radius:12px;margin:12px 0}
+.total{font-size:20px;font-weight:bold;color:#5148b8}
 footer{background:#171738;color:white;text-align:center;padding:25px;margin-top:40px}
+.empty{text-align:center;padding:30px;color:#777}
 </style>
 </head>
 <body>
@@ -32,7 +35,8 @@ footer{background:#171738;color:white;text-align:center;padding:25px;margin-top:
 </header>
 
 <nav>
-<button onclick="showShop()">صفحه فروشگاه</button>
+<button onclick="showShop()">فروشگاه</button>
+<button onclick="showCart()">🛒 سبد خرید (<span id="cartCount">۰</span>)</button>
 <button onclick="showLogin()">ورود مدیریت</button>
 </nav>
 
@@ -47,6 +51,17 @@ footer{background:#171738;color:white;text-align:center;padding:25px;margin-top:
 <div class="products" id="productList"></div>
 </section>
 
+<section id="cart" class="hidden">
+<div class="panel">
+<h2>🛒 سبد خرید شما</h2>
+<div id="cartList"></div>
+<hr>
+<p class="total">مبلغ کل: <span id="cartTotal">۰</span> تومان</p>
+<button onclick="showShop()">ادامه خرید</button>
+<button onclick="checkout()">ثبت سفارش</button>
+</div>
+</section>
+
 <section id="login" class="hidden">
 <div class="panel">
 <h2>ورود به مدیریت تک شاپ</h2>
@@ -59,13 +74,12 @@ footer{background:#171738;color:white;text-align:center;padding:25px;margin-top:
 <section id="admin" class="hidden">
 <div class="panel">
 <h2>پنل مدیریت تک شاپ</h2>
-<p>از این قسمت محصولات فروشگاه را مدیریت کنید.</p>
 <input id="name" placeholder="نام محصول">
 <input id="price" type="number" placeholder="قیمت محصول به تومان">
 <input id="image" placeholder="آدرس تصویر محصول">
 <textarea id="description" placeholder="توضیحات محصول"></textarea>
 <button onclick="saveProduct()">ثبت محصول</button>
-<button class="danger" onclick="logout()">خروج از مدیریت</button>
+<button class="danger" onclick="logout()">خروج</button>
 </div>
 <h2>مدیریت محصولات</h2>
 <div class="products" id="adminList"></div>
@@ -79,12 +93,44 @@ footer{background:#171738;color:white;text-align:center;padding:25px;margin-top:
 </footer>
 
 <script>
-const ADMIN_PASSWORD = "123456";
-let products=JSON.parse(localStorage.getItem("techshop"))||[];
+const ADMIN_PASSWORD="139362";
+
+let products=JSON.parse(localStorage.getItem("techshop")||"[]");
+let cart=JSON.parse(localStorage.getItem("techshop_cart")||"{}");
 let editIndex=-1;
+
+products.forEach(p=>{
+if(!p.id)p.id="p"+Date.now()+Math.random().toString(36).slice(2,8);
+});
+save();
 
 function save(){
 localStorage.setItem("techshop",JSON.stringify(products));
+}
+
+function saveCart(){
+localStorage.setItem("techshop_cart",JSON.stringify(cart));
+updateCartCount();
+}
+
+function safeImage(url){
+try{
+let u=new URL(url);
+if(u.protocol==="https:"||u.protocol==="http:")return u.href;
+}catch(e){}
+return "";
+}
+
+function esc(v){
+return String(v??"").replace(/[&<>"']/g,c=>({
+"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+}[c]));
+}
+
+function hideAll(){
+["shop","cart","login","admin"].forEach(id=>{
+document.getElementById(id).classList.add("hidden");
+});
 }
 
 function showShop(){
@@ -93,25 +139,24 @@ document.getElementById("shop").classList.remove("hidden");
 renderShop();
 }
 
+function showCart(){
+hideAll();
+document.getElementById("cart").classList.remove("hidden");
+renderCart();
+}
+
 function showLogin(){
 hideAll();
 document.getElementById("login").classList.remove("hidden");
 }
 
-function hideAll(){
-["shop","login","admin"].forEach(id=>{
-document.getElementById(id).classList.add("hidden");
-});
-}
-
 function login(){
-let p=document.getElementById("password").value;
-if(p===ADMIN_PASSWORD){
+if(document.getElementById("password").value===ADMIN_PASSWORD){
 hideAll();
 document.getElementById("admin").classList.remove("hidden");
 renderAdmin();
 }else{
-document.getElementById("message").textContent="رمز عبور اشتباه است!";
+document.getElementById("message").textContent="رمز اشتباه است!";
 }
 }
 
@@ -130,69 +175,160 @@ if(!name||!price||Number(price)<=0){
 alert("نام و قیمت معتبر وارد کنید");
 return;
 }
+if(image&&!safeImage(image)){
+alert("آدرس تصویر معتبر نیست");
+return;
+}
 
-let item={name,price,image,description};
+let item={
+id:editIndex<0?"p"+Date.now()+Math.random().toString(36).slice(2,8):products[editIndex].id,
+name,price,image,description
+};
 
-if(editIndex<0) products.push(item);
+if(editIndex<0)products.push(item);
 else products[editIndex]=item;
 
 editIndex=-1;
 save();
-
-["name","price","image","description"].forEach(id=>{
-document.getElementById(id).value="";
-});
-
+clearForm();
 renderAdmin();
 alert("محصول ثبت شد!");
 }
 
-function removeProduct(i){
-if(confirm("این محصول حذف شود؟")){
-products.splice(i,1);
-save();
-renderAdmin();
-}
+function clearForm(){
+["name","price","image","description"].forEach(id=>{
+document.getElementById(id).value="";
+});
 }
 
 function editProduct(i){
 let p=products[i];
 document.getElementById("name").value=p.name;
 document.getElementById("price").value=p.price;
-document.getElementById("image").value=p.image;
-document.getElementById("description").value=p.description;
+document.getElementById("image").value=p.image||"";
+document.getElementById("description").value=p.description||"";
 editIndex=i;
 window.scrollTo(0,0);
+}
+
+function removeProduct(i){
+if(confirm("محصول حذف شود؟")){
+delete cart[products[i].id];
+products.splice(i,1);
+save();
+saveCart();
+renderAdmin();
+}
+}
+
+function addToCart(i){
+let id=products[i].id;
+cart[id]=(Number(cart[id])||0)+1;
+saveCart();
+alert("به سبد خرید اضافه شد!");
+}
+
+function changeQuantity(i,n){
+let id=products[i].id;
+cart[id]=(Number(cart[id])||0)+n;
+if(cart[id]<=0)delete cart[id];
+saveCart();
+renderCart();
+}
+
+function removeFromCart(i){
+delete cart[products[i].id];
+saveCart();
+renderCart();
+}
+
+function updateCartCount(){
+let count=Object.values(cart).reduce((a,b)=>a+Number(b),0);
+document.getElementById("cartCount").textContent=count.toLocaleString("fa-IR");
+}
+
+function imageHTML(url){
+let src=safeImage(url);
+if(!src)return '<div style="height:170px;background:#eee;display:grid;place-items:center">بدون تصویر</div>';
+return `<img src="${esc(src)}" alt="محصول" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'"><div style="display:none;height:170px;background:#eee;place-items:center">تصویر موجود نیست</div>`;
 }
 
 function card(p,i,admin){
 return `
 <div class="product">
-${p.image?`<img src="${p.image}" alt="محصول">`:""}
-<h3>${p.name}</h3>
-<p>${p.description||""}</p>
+${imageHTML(p.image)}
+<h3>${esc(p.name)}</h3>
+<p>${esc(p.description)}</p>
 <strong>${Number(p.price).toLocaleString("fa-IR")} تومان</strong>
-${admin?`
-<div>
-<button onclick="editProduct(${i})">ویرایش</button>
-<button class="danger" onclick="removeProduct(${i})">حذف</button>
-</div>`:""}
+${admin?
+`<div><button onclick="editProduct(${i})">ویرایش</button>
+<button class="danger" onclick="removeProduct(${i})">حذف</button></div>`:
+`<div><button onclick="addToCart(${i})">افزودن به سبد خرید 🛒</button></div>`
+}
 </div>`;
 }
 
 function renderShop(){
-document.getElementById("productList").innerHTML=
-products.map((p,i)=>card(p,i,false)).join("");
+document.getElementById("productList").innerHTML=products.length?
+products.map((p,i)=>card(p,i,false)).join(""):
+'<div class="empty">هنوز محصولی ثبت نشده است.</div>';
 }
 
 function renderAdmin(){
-document.getElementById("adminList").innerHTML=
-products.map((p,i)=>card(p,i,true)).join("");
+document.getElementById("adminList").innerHTML=products.map((p,i)=>card(p,i,true)).join("");
 }
 
+function renderCart(){
+let total=0;
+let html="";
+
+products.forEach((p,i)=>{
+let count=Number(cart[p.id])||0;
+if(count<=0)return;
+
+let sum=Number(p.price)*count;
+total+=sum;
+
+html+=`
+<div class="cart-item">
+<h3>${esc(p.name)}</h3>
+<p>قیمت: ${Number(p.price).toLocaleString("fa-IR")} تومان</p>
+<p>تعداد: ${count.toLocaleString("fa-IR")}</p>
+<button onclick="changeQuantity(${i},1)">+</button>
+<button onclick="changeQuantity(${i},-1)">-</button>
+<button class="danger" onclick="removeFromCart(${i})">حذف</button>
+<p>جمع: ${sum.toLocaleString("fa-IR")} تومان</p>
+</div>`;
+});
+
+document.getElementById("cartList").innerHTML=html||'<div class="empty">سبد خرید خالی است!</div>';
+document.getElementById("cartTotal").textContent=total.toLocaleString("fa-IR");
+updateCartCount();
+}
+
+function checkout(){
+if(!Object.values(cart).some(v=>Number(v)>0)){
+alert("سبد خرید خالی است!");
+return;
+}
+let lines=[];
+let total=0;
+
+products.forEach(p=>{
+let count=Number(cart[p.id])||0;
+if(count>0){
+lines.push(p.name+" × "+count);
+total+=Number(p.price)*count;
+}
+});
+
+alert("سفارش شما:\n"+lines.join("\n")+
+"\nمبلغ کل: "+total.toLocaleString("fa-IR")+" تومان"+
+"\n\nپرداخت اینترنتی در این نسخه فعال نیست.");
+}
+
+updateCartCount();
 showShop();
 </script>
 </body>
-</html>
-
-  
+  </html>
